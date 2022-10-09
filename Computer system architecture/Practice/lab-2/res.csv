@@ -1,0 +1,11 @@
+PModel,Task,OpType,Opt,InsCount,Timer,Time,LNum,AvTime,AbsError,RelError,TaskPerf
+Intel(R)_Core(TM)_i5-8250U_CPU_@_1.60GHz,sin,double,O2,10,gettimeofday,5.72205e-06,1,6.8903e-06,1.16825e-06,20.4167%,1.74763e+06
+Intel(R)_Core(TM)_i5-8250U_CPU_@_1.60GHz,sin,double,O2,10,gettimeofday,7.15256e-06,2,6.8903e-06,2.6226e-07,3.66667%,1.3981e+06
+Intel(R)_Core(TM)_i5-8250U_CPU_@_1.60GHz,sin,double,O2,10,gettimeofday,6.67572e-06,3,6.8903e-06,2.14577e-07,3.21429%,1.49797e+06
+Intel(R)_Core(TM)_i5-8250U_CPU_@_1.60GHz,sin,double,O2,10,gettimeofday,7.15256e-06,4,6.8903e-06,2.6226e-07,3.66667%,1.3981e+06
+Intel(R)_Core(TM)_i5-8250U_CPU_@_1.60GHz,sin,double,O2,10,gettimeofday,7.15256e-06,5,6.8903e-06,2.6226e-07,3.66667%,1.3981e+06
+Intel(R)_Core(TM)_i5-8250U_CPU_@_1.60GHz,sin,double,O2,10,gettimeofday,7.15256e-06,6,6.8903e-06,2.6226e-07,3.66667%,1.3981e+06
+Intel(R)_Core(TM)_i5-8250U_CPU_@_1.60GHz,sin,double,O2,10,gettimeofday,6.91414e-06,7,6.8903e-06,2.38419e-08,0.344828%,1.44631e+06
+Intel(R)_Core(TM)_i5-8250U_CPU_@_1.60GHz,sin,double,O2,10,gettimeofday,6.19888e-06,8,6.8903e-06,6.91414e-07,11.1538%,1.61319e+06
+Intel(R)_Core(TM)_i5-8250U_CPU_@_1.60GHz,sin,double,O2,10,gettimeofday,5.72205e-06,9,6.8903e-06,1.16825e-06,20.4167%,1.74763e+06
+Intel(R)_Core(TM)_i5-8250U_CPU_@_1.60GHz,sin,double,O2,10,gettimeofday,9.05991e-06,10,6.8903e-06,2.16961e-06,23.9474%,1.10376e+06
