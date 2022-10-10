@@ -118,7 +118,7 @@ private:
     }
 
     template <typename T> void execute_task(const std::string &path) {
-        int size = block_size_ / sizeof(T);
+        size_t size = block_size_ / sizeof(T);
         if (path == "None") {
             for (size_t i = 0; i < count_; ++i) {
                 T *arr = new T[size];
@@ -130,7 +130,7 @@ private:
                 }
                 for (size_t j = 0; j < size; ++j) {
                     double t = wtime();
-                    auto tmp = arr[j];
+                    [[maybe_unused]] auto tmp = arr[j];
                     read_time_[i] += wtime() - t;
                 }
                 average_write_time_ += write_time_[i];
@@ -165,9 +165,9 @@ private:
             }
         }
         average_write_time_ /= count_;
-        write_bandwidth_ = block_size_ / average_write_time_;
+        write_bandwidth_ = block_size_ / average_write_time_ * 1e6;
         average_read_time_ /= count_;
-        read_bandwidth_ = block_size_ / average_read_time_;
+        read_bandwidth_ = block_size_ / average_read_time_ * 1e6;
         for (size_t i = 0; i < count_; ++i) {
             abs_error_write_[i] = fabs(average_write_time_ - write_time_[i]);
             rel_error_write_[i] = (abs_error_write_[i] / write_time_[i]) * 100;
