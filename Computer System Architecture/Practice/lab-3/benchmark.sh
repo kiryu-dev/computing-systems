@@ -2,10 +2,10 @@
 
 # initial values
 OUTFILE="res.csv"
-MEMORYTYPE="RAM"
-BLOCKSIZE="64"
-ELEMENTTYPE="int"
-COUNT="10"
+MEMORYTYPE="SSD"
+BLOCKSIZE="4194304"
+ELEMENTTYPE="double"
+COUNT="20"
 
 echo "g++ -Wall -o app lab-3.cpp"
 g++ -Wall -o app lab-3.cpp

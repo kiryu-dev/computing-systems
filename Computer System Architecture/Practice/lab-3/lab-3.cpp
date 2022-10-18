@@ -30,6 +30,8 @@ private:
     double *abs_error_read_;
     double *rel_error_read_;
 
+    const size_t step_ = 4194304;
+
 public:
     Benchmark(
         const size_t count = 10,
@@ -63,7 +65,6 @@ public:
     void launch() {
         if (memory_type_ == "RAM") {
             /*
-            cache line size: 64 b
             L1 cache: 128 Kb
             L2 cache: 1 MiB
             L3 cache: 6 MiB
@@ -83,8 +84,9 @@ public:
             }
         } else {
             buffer_size_ = block_size_;
-            auto path = get_command_output(
-                "lsblk | grep /media | awk '{printf $NF\"/flash_enjoyer_testik.txt\"}'");
+            auto path =
+                get_command_output("lsblk | grep /media | awk '{printf "
+                                   "$NF\"/flash_enjoyer_testik.txt\"}'");
             if (element_type_ == "double") {
                 execute_task<double>(path);
             } else {
@@ -102,14 +104,15 @@ public:
                    "write),RelError(write),ReadTime,AverageReadTime,"
                    "ReadBandwidth,AbsError(read),RelError(read)\n";
             for (size_t i = 0; i < count_; ++i) {
-                outfile << memory_type_ << "," << block_size_ << ","
-                        << element_type_ << "," << buffer_size_ << ","
-                        << (i + 1) << ",gettimeofday," << write_time_[i] << ","
-                        << average_write_time_ << "," << write_bandwidth_ << ","
-                        << abs_error_write_[i] << "," << rel_error_write_[i]
-                        << "," << read_time_[i] << "," << average_read_time_
-                        << "," << read_bandwidth_ << "," << abs_error_read_[i]
-                        << "," << rel_error_read_[i] << "\n";
+                outfile << memory_type_ << "," << block_size_ + i * step_ << ","
+                        << element_type_ << "," << buffer_size_ + i * step_
+                        << "," << (i + 1) << ",gettimeofday," << write_time_[i]
+                        << "," << average_write_time_ << "," << write_bandwidth_
+                        << "," << abs_error_write_[i] << ","
+                        << rel_error_write_[i] << "," << read_time_[i] << ","
+                        << average_read_time_ << "," << read_bandwidth_ << ","
+                        << abs_error_read_[i] << "," << rel_error_read_[i]
+                        << "\n";
             }
         }
         outfile.close();
@@ -124,7 +127,6 @@ private:
 
     template <typename T> void execute_task(const std::string &path) {
         size_t size = block_size_ / sizeof(T);
-        std::cout << size;
         if (path == "None") {
             for (size_t i = 0; i < count_; ++i) {
                 T *arr = new T[size];
@@ -145,6 +147,7 @@ private:
             }
         } else {
             FILE *file;
+            size_t step = step_ / sizeof(T); // шаг для серии испытаний
             for (size_t i = 0; i < count_; ++i) {
                 T *arr = new T[size];
                 if ((file = fopen(path.c_str(), "w")) != nullptr) {
@@ -168,12 +171,13 @@ private:
                 average_write_time_ += write_time_[i];
                 average_read_time_ += read_time_[i];
                 delete[] arr;
+                size += step;
             }
         }
         average_write_time_ /= count_;
-        write_bandwidth_ = block_size_ / average_write_time_ * 1e6;
+        write_bandwidth_ = (block_size_ + step_) / average_write_time_ * 1e6;
         average_read_time_ /= count_;
-        read_bandwidth_ = block_size_ / average_read_time_ * 1e6;
+        read_bandwidth_ = (block_size_ + step_) / average_read_time_ * 1e6;
         for (size_t i = 0; i < count_; ++i) {
             abs_error_write_[i] = fabs(average_write_time_ - write_time_[i]);
             rel_error_write_[i] = (abs_error_write_[i] / write_time_[i]) * 100;
