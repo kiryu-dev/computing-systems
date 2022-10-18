@@ -19,7 +19,6 @@ private:
     std::string element_type_;
     std::string filename_;
     size_t buffer_size_;
-    // size_t launch_num_;
     double *write_time_;
     double average_write_time_;
     double write_bandwidth_;
@@ -63,6 +62,12 @@ public:
 
     void launch() {
         if (memory_type_ == "RAM") {
+            /*
+            cache line size: 64 b
+            L1 cache: 128 Kb
+            L2 cache: 1 MiB
+            L3 cache: 6 MiB
+            */
             buffer_size_ = 1;
             if (element_type_ == "double") {
                 execute_task<double>("None");
@@ -79,7 +84,7 @@ public:
         } else {
             buffer_size_ = block_size_;
             auto path = get_command_output(
-                "lsblk | grep /media | awk '{printf $NF\"/test.txt\"}'");
+                "lsblk | grep /media | awk '{printf $NF\"/flash_enjoyer_testik.txt\"}'");
             if (element_type_ == "double") {
                 execute_task<double>(path);
             } else {
@@ -119,6 +124,7 @@ private:
 
     template <typename T> void execute_task(const std::string &path) {
         size_t size = block_size_ / sizeof(T);
+        std::cout << size;
         if (path == "None") {
             for (size_t i = 0; i < count_; ++i) {
                 T *arr = new T[size];
@@ -181,8 +187,9 @@ private:
         std::string result = "";
         FILE *pipe = popen(cmd, "r");
         if (pipe != nullptr) {
-            while (fgets(buffer, sizeof buffer, pipe) != nullptr)
+            while (fgets(buffer, sizeof(buffer), pipe) != nullptr) {
                 result += buffer;
+            }
             pclose(pipe);
         } else {
             throw std::runtime_error("popen() failed!");
