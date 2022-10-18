@@ -72,9 +72,9 @@ public:
         } else if (memory_type_ == "HDD" || memory_type_ == "SSD") {
             buffer_size_ = block_size_;
             if (element_type_ == "double") {
-                execute_task<double>("test.txt");
+                execute_task<double>("hdd_or_ssd_testik.txt");
             } else {
-                execute_task<int>("test.txt");
+                execute_task<int>("hdd_or_ssd_testik.txt");
             }
         } else {
             buffer_size_ = block_size_;
