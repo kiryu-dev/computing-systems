@@ -21,12 +21,12 @@ private:
     size_t buffer_size_;
     double *write_time_;
     double average_write_time_;
-    double write_bandwidth_;
+    double *write_bandwidth_;
     double *abs_error_write_;
     double *rel_error_write_;
     double *read_time_;
     double average_read_time_;
-    double read_bandwidth_;
+    double *read_bandwidth_;
     double *abs_error_read_;
     double *rel_error_read_;
 
@@ -43,12 +43,12 @@ public:
           element_type_(element_type), filename_(filename) {
         write_time_ = new double[count_];
         average_write_time_ = 0;
-        write_bandwidth_ = 0;
+        write_bandwidth_ = new double[count_];
         abs_error_write_ = new double[count_];
         rel_error_write_ = new double[count_];
         read_time_ = new double[count_];
         average_read_time_ = 0;
-        read_bandwidth_ = 0;
+        read_bandwidth_ = new double[count_];
         abs_error_read_ = new double[count_];
         rel_error_read_ = new double[count_];
     }
@@ -60,6 +60,8 @@ public:
         delete[] read_time_;
         delete[] abs_error_read_;
         delete[] rel_error_read_;
+        delete[] write_bandwidth_;
+        delete[] read_bandwidth_;
     }
 
     void launch() {
@@ -107,12 +109,12 @@ public:
                 outfile << memory_type_ << "," << block_size_ + i * step_ << ","
                         << element_type_ << "," << buffer_size_ + i * step_
                         << "," << (i + 1) << ",gettimeofday," << write_time_[i]
-                        << "," << average_write_time_ << "," << write_bandwidth_
-                        << "," << abs_error_write_[i] << ","
-                        << rel_error_write_[i] << "," << read_time_[i] << ","
-                        << average_read_time_ << "," << read_bandwidth_ << ","
-                        << abs_error_read_[i] << "," << rel_error_read_[i]
-                        << "\n";
+                        << "," << average_write_time_ << ","
+                        << write_bandwidth_[i] << "," << abs_error_write_[i]
+                        << "," << rel_error_write_[i] << "," << read_time_[i]
+                        << "," << average_read_time_ << ","
+                        << read_bandwidth_[i] << "," << abs_error_read_[i]
+                        << "," << rel_error_read_[i] << "\n";
             }
         }
         outfile.close();
@@ -141,8 +143,8 @@ private:
                     [[maybe_unused]] auto tmp = arr[j];
                     read_time_[i] += wtime() - t;
                 }
-                average_write_time_ += write_time_[i];
-                average_read_time_ += read_time_[i];
+                average_write_time_ += write_time_[i] / count_;
+                average_read_time_ += read_time_[i] / count_;
                 delete[] arr;
             }
         } else {
@@ -168,17 +170,17 @@ private:
                     std::cout << "Cannot open" << path << " for write\n";
                     exit(1);
                 }
-                average_write_time_ += write_time_[i];
-                average_read_time_ += read_time_[i];
+                average_write_time_ += write_time_[i] / count_;
+                average_read_time_ += read_time_[i] / count_;
                 delete[] arr;
                 size += step;
             }
         }
-        average_write_time_ /= count_;
-        write_bandwidth_ = (block_size_ + step_) / average_write_time_ * 1e6;
-        average_read_time_ /= count_;
-        read_bandwidth_ = (block_size_ + step_) / average_read_time_ * 1e6;
         for (size_t i = 0; i < count_; ++i) {
+            write_bandwidth_[i] = (block_size_ / (1024 * 1024) + 4 * i) /
+                average_write_time_ * 1e6;
+            read_bandwidth_[i] = (block_size_ / (1024 * 1024) + 4 * i) /
+                average_read_time_ * 1e6;
             abs_error_write_[i] = fabs(average_write_time_ - write_time_[i]);
             rel_error_write_[i] = (abs_error_write_[i] / write_time_[i]) * 100;
             abs_error_read_[i] = fabs(average_read_time_ - read_time_[i]);

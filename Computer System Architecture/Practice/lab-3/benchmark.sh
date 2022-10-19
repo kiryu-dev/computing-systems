@@ -4,7 +4,7 @@
 OUTFILE="res.csv"
 MEMORYTYPE="SSD"
 BLOCKSIZE="4194304"
-ELEMENTTYPE="double"
+ELEMENTTYPE="int"
 COUNT="20"
 
 echo "g++ -Wall -o app lab-3.cpp"
