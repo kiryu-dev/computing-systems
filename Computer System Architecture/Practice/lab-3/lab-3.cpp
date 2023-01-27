@@ -1,31 +1,27 @@
 #include "CLI11.hpp"
+#include <fstream>
 #include <iostream>
 #include <math.h>
+#include <random>
 #include <sys/time.h>
 #include <time.h>
 
-template <typename T> T custom_rand() {
-    const T min = 0;
-    const T max = RAND_MAX;
-    double f = (double)random() / RAND_MAX;
-    return (T)(min + f * (max - min));
-}
-
 class Benchmark {
 private:
+    char buffer_write_[1024 * 1024];
+    char buffer_read_[1024 * 1024];
     size_t count_;
     std::string memory_type_;
     size_t block_size_;
-    std::string element_type_;
     std::string filename_;
     size_t buffer_size_;
     double *write_time_;
-    double average_write_time_;
+    double *average_write_time_;
     double *write_bandwidth_;
     double *abs_error_write_;
     double *rel_error_write_;
     double *read_time_;
-    double average_read_time_;
+    double *average_read_time_;
     double *read_bandwidth_;
     double *abs_error_read_;
     double *rel_error_read_;
@@ -37,20 +33,23 @@ public:
         const size_t count = 10,
         const std::string memory_type = "RAM",
         const size_t block_size = 1024,
-        const std::string element_type = "double",
         const std::string filename = "res.csv")
         : count_(count), memory_type_(memory_type), block_size_(block_size),
-          element_type_(element_type), filename_(filename) {
+          filename_(filename) {
         write_time_ = new double[count_];
-        average_write_time_ = 0;
+        average_write_time_ = new double[count_];
         write_bandwidth_ = new double[count_];
         abs_error_write_ = new double[count_];
         rel_error_write_ = new double[count_];
         read_time_ = new double[count_];
-        average_read_time_ = 0;
+        average_read_time_ = new double[count_];
         read_bandwidth_ = new double[count_];
         abs_error_read_ = new double[count_];
         rel_error_read_ = new double[count_];
+        for (size_t i = 0; i < count_; ++i) {
+            average_read_time_[i] = 0;
+            average_write_time_[i] = 0;
+        }
     }
 
     ~Benchmark() {
@@ -62,128 +61,144 @@ public:
         delete[] rel_error_read_;
         delete[] write_bandwidth_;
         delete[] read_bandwidth_;
+        delete[] average_read_time_;
+        delete[] average_write_time_;
     }
 
     void launch() {
+        buffer_size_ = block_size_ < 1024 * 1024 ? block_size_ : 1024 * 1024;
         if (memory_type_ == "RAM") {
             /*
             L1 cache: 128 Kb
             L2 cache: 1 MiB
             L3 cache: 6 MiB
             */
-            buffer_size_ = 1;
-            if (element_type_ == "double") {
-                execute_task<double>("None");
-            } else {
-                execute_task<int>("None");
-            }
+            execute_task("None");
         } else if (memory_type_ == "HDD" || memory_type_ == "SSD") {
-            buffer_size_ = block_size_;
-            if (element_type_ == "double") {
-                execute_task<double>("hdd_or_ssd_testik.txt");
-            } else {
-                execute_task<int>("hdd_or_ssd_testik.txt");
-            }
+            execute_task("hdd_or_ssd_testik.bin");
         } else {
-            buffer_size_ = block_size_;
             auto path =
                 get_command_output("lsblk | grep /media | awk '{printf "
-                                   "$NF\"/flash_enjoyer_testik.txt\"}'");
-            if (element_type_ == "double") {
-                execute_task<double>(path);
-            } else {
-                execute_task<int>(path);
-            }
+                                   "$NF\"/flash_enjoyer_testik.bin\"}'");
+            execute_task(path);
         }
     }
 
     void write() {
-        std::ofstream outfile(filename_, std::ios_base::out);
+        std::ofstream outfile(filename_, std::ios::app);
         if (outfile) {
-            outfile
-                << "MemoryType,BlockSize,ElementType,BufferSize,LaunchNum,"
-                   "Timer,WriteTime,AverageWriteTime,WriteBandwidth,AbsError("
-                   "write),RelError(write),ReadTime,AverageReadTime,"
-                   "ReadBandwidth,AbsError(read),RelError(read)\n";
+            // outfile
+            //     << "MemoryType,BlockSize,ElementType,BufferSize,LaunchNum,"
+            //        "Timer,WriteTime,AverageWriteTime,WriteBandwidth,AbsError("
+            //        "write),RelError(write),ReadTime,AverageReadTime,"
+            //        "ReadBandwidth,AbsError(read),RelError(read)\n";
             for (size_t i = 0; i < count_; ++i) {
-                outfile << memory_type_ << "," << block_size_ + i * step_ << ","
-                        << element_type_ << "," << buffer_size_ + i * step_
-                        << "," << (i + 1) << ",gettimeofday," << write_time_[i]
-                        << "," << average_write_time_ << ","
-                        << write_bandwidth_[i] << "," << abs_error_write_[i]
-                        << "," << rel_error_write_[i] << "," << read_time_[i]
-                        << "," << average_read_time_ << ","
-                        << read_bandwidth_[i] << "," << abs_error_read_[i]
-                        << "," << rel_error_read_[i] << "\n";
+                outfile << memory_type_ << "," << block_size_ << ",char,"
+                        << buffer_size_ << "," << (i + 1) << ",clock_gettime,"
+                        << write_time_[i] << "," << average_write_time_[i]
+                        << "," << write_bandwidth_[i] << ","
+                        << abs_error_write_[i] << "," << rel_error_write_[i]
+                        << "," << read_time_[i] << "," << average_read_time_[i]
+                        << "," << read_bandwidth_[i] << ","
+                        << abs_error_read_[i] << "," << rel_error_read_[i]
+                        << "\n";
             }
         }
         outfile.close();
     }
 
 private:
-    double wtime() {
-        struct timeval t;
-        gettimeofday(&t, NULL);
-        return (double)t.tv_sec + (double)t.tv_usec * 1E-6;
-    }
-
-    template <typename T> void execute_task(const std::string &path) {
-        size_t size = block_size_ / sizeof(T);
+    void execute_task(const std::string &path) {
         if (path == "None") {
             for (size_t i = 0; i < count_; ++i) {
-                T *arr = new T[size];
-                for (size_t j = 0; j < size; ++j) {
-                    auto tmp = custom_rand<T>();
-                    double t = wtime();
-                    arr[j] = tmp;
-                    write_time_[i] += wtime() - t;
+                timespec start_write, end_write, start_read, end_read;
+                clock_gettime(CLOCK_MONOTONIC, &start_write);
+                for (size_t j = 0; j < block_size_; j += buffer_size_) {
+                    for (size_t k = 0; k < buffer_size_; ++k) {
+                        buffer_write_[k] = 0;
+                    }
                 }
-                for (size_t j = 0; j < size; ++j) {
-                    double t = wtime();
-                    [[maybe_unused]] auto tmp = arr[j];
-                    read_time_[i] += wtime() - t;
+                clock_gettime(CLOCK_MONOTONIC, &end_write);
+                write_time_[i] =
+                    static_cast<double>(end_write.tv_sec - start_write.tv_sec) +
+                    static_cast<double>(
+                        end_write.tv_nsec - start_write.tv_nsec) *
+                        1E-9;
+                clock_gettime(CLOCK_MONOTONIC, &start_read);
+                for (size_t j = 0; j < block_size_; j += buffer_size_) {
+                    for (size_t k = 0; k < buffer_size_; ++k) {
+                        buffer_read_[k] = buffer_write_[k];
+                    }
                 }
-                average_write_time_ += write_time_[i] / count_;
-                average_read_time_ += read_time_[i] / count_;
-                delete[] arr;
+                clock_gettime(CLOCK_MONOTONIC, &end_read);
+                read_time_[i] =
+                    static_cast<double>(end_read.tv_sec - start_read.tv_sec) +
+                    static_cast<double>(end_read.tv_nsec - start_read.tv_nsec) *
+                        1E-9;
+                for (size_t j = 0; j < i + 1; ++j) {
+                    average_write_time_[i] += write_time_[j];
+                    average_read_time_[i] += read_time_[j];
+                }
             }
         } else {
-            FILE *file;
-            size_t step = step_ / sizeof(T); // шаг для серии испытаний
-            for (size_t i = 0; i < count_; ++i) {
-                T *arr = new T[size];
-                if ((file = fopen(path.c_str(), "w")) != nullptr) {
-                    double t = wtime();
-                    fwrite(arr, sizeof(T), size, file);
-                    write_time_[i] += wtime() - t;
-                    fclose(file);
-                } else {
-                    std::cout << "Cannot open" << path << " for write\n";
-                    exit(1);
-                }
-                if ((file = fopen(path.c_str(), "r")) != nullptr) {
-                    double t = wtime();
-                    fread(arr, sizeof(T), size, file);
-                    read_time_[i] += wtime() - t;
-                    fclose(file);
-                } else {
-                    std::cout << "Cannot open" << path << " for write\n";
-                    exit(1);
-                }
-                average_write_time_ += write_time_[i] / count_;
-                average_read_time_ += read_time_[i] / count_;
-                delete[] arr;
-                size += step;
+            std::random_device rd;
+            std::mt19937 gen(rd());
+            std::uniform_int_distribution<> dist(33, 126);
+            for (size_t i = 0; i < buffer_size_; ++i) {
+                buffer_write_[i] = dist(gen);
             }
+            for (size_t i = 0; i < count_; ++i) {
+                std::fstream file(path, std::ios_base::out);
+                file.close();
+                file.open(path, std::ios_base::out | std::ios_base::in);
+                if (!file.is_open()) {
+                    std::cout << "Can't open " << path << "\n";
+                    exit(1);
+                }
+                timespec start_write, end_write, start_read, end_read;
+                clock_gettime(CLOCK_MONOTONIC, &start_write);
+                for (size_t j = 0; j < block_size_; j += buffer_size_) {
+                    for (size_t k = 0; k < buffer_size_; ++k) {
+                        file.put(buffer_write_[k]);
+                    }
+                }
+                clock_gettime(CLOCK_MONOTONIC, &end_write);
+                write_time_[i] =
+                    static_cast<double>(end_write.tv_sec - start_write.tv_sec) +
+                    static_cast<double>(
+                        end_write.tv_nsec - start_write.tv_nsec) *
+                        1E-9;
+                clock_gettime(CLOCK_MONOTONIC, &start_read);
+                for (size_t j = 0; j < block_size_; j += buffer_size_) {
+                    for (size_t k = 0; k < buffer_size_; ++k) {
+                        file.get(buffer_read_[k]);
+                    }
+                }
+                clock_gettime(CLOCK_MONOTONIC, &end_read);
+                read_time_[i] =
+                    static_cast<double>(end_read.tv_sec - start_read.tv_sec) +
+                    static_cast<double>(end_read.tv_nsec - start_read.tv_nsec) *
+                        1E-9;
+                for (size_t j = 0; j < i + 1; ++j) {
+                    average_write_time_[i] += write_time_[j];
+                    average_read_time_[i] += read_time_[j];
+                }
+                /* для экспериментов в лабораторной */
+                // block_size_ += 4 * 1024 * 1024;
+            }
+            std::filesystem::remove(path);
         }
         for (size_t i = 0; i < count_; ++i) {
-            write_bandwidth_[i] = (block_size_ / (1024 * 1024) + 4 * i) /
-                average_write_time_ * 1e6;
-            read_bandwidth_[i] = (block_size_ / (1024 * 1024) + 4 * i) /
-                average_read_time_ * 1e6;
-            abs_error_write_[i] = fabs(average_write_time_ - write_time_[i]);
+            // block_size_ = (4 * 1024 * 1024 + i * (4 * 1024 * 1024));
+            average_write_time_[i] /= (i + 1);
+            average_read_time_[i] /= (i + 1);
+            write_bandwidth_[i] =
+                (double)block_size_ / average_write_time_[i] / (1024 * 1024);
+            read_bandwidth_[i] =
+                (double)block_size_ / average_read_time_[i] / (1024 * 1024);
+            abs_error_write_[i] = fabs(average_write_time_[i] - write_time_[i]);
             rel_error_write_[i] = (abs_error_write_[i] / write_time_[i]) * 100;
-            abs_error_read_[i] = fabs(average_read_time_ - read_time_[i]);
+            abs_error_read_[i] = fabs(average_read_time_[i] - read_time_[i]);
             rel_error_read_[i] = (abs_error_read_[i] / read_time_[i]) * 100;
         }
     }
@@ -210,7 +225,6 @@ int main(int argc, char **argv) {
     size_t count;
     std::string memory_type;
     size_t block_size;
-    std::string element_type;
     std::string filename;
     app.add_option(
            "-n,--num",
@@ -227,15 +241,9 @@ int main(int argc, char **argv) {
            block_size,
            "block size\nin the range 1 to 1073741824")
         ->check(CLI::Range(1, 1024 * 1024 * 1024));
-    ;
-    app.add_option(
-           "-e,--element-type",
-           element_type,
-           "select element type: int or double")
-        ->check(CLI::IsMember({"int", "double"}));
     app.add_option("-f,--file", filename, "filename to output results");
     CLI11_PARSE(app, argc, argv);
-    Benchmark benchmark(count, memory_type, block_size, element_type, filename);
+    Benchmark benchmark(count, memory_type, block_size, filename);
     benchmark.launch();
     benchmark.write();
     return 0;

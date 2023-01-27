@@ -59,10 +59,10 @@ for i in $(seq 1 "$count")
 do
     nameDevice=$(ip address | grep 'qlen' | awk -v i=$i 'NR == i {print $2}')
     
-    var=$(echo $nameDevice | grep 'NONE')
-    if [[ -n $var ]]
-    then continue
-    fi
+    # var=$(echo $nameDevice | grep 'NONE')
+    # if [[ -n $var ]]
+    # then continue
+    # fi
 
     echo " Имя сетевого интерфейса №$i: $nameDevice"
 

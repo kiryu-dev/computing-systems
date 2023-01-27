@@ -13,7 +13,7 @@ template <typename T> T custom_rand() {
 
 class Benchmark {
 private:
-    const size_t num_of_oper_ = 10;
+    const size_t num_of_oper_ = 10000;
     std::string pmodel_;
     size_t ins_count_;
     std::string filename_;
@@ -64,10 +64,11 @@ public:
     }
 
     void write() {
-        std::ofstream outfile(filename_, std::ios_base::out);
+        std::ofstream outfile(filename_, std::ios::app);
         if (outfile) {
-            outfile << "PModel,Task,OpType,Opt,InsCount,Timer,Time,LNum,AvTime,"
-                       "AbsError,RelError,TaskPerf\n";
+            // outfile <<
+            // "PModel,Task,OpType,Opt,InsCount,Timer,Time,LNum,AvTime,"
+            //            "AbsError,RelError,TaskPerf\n";
             for (size_t i = 0; i < ins_count_; ++i) {
                 outfile << pmodel_ << "," << task_ << "," << operand_type_
                         << "," << opt_ << "," << ins_count_ << ",gettimeofday,"

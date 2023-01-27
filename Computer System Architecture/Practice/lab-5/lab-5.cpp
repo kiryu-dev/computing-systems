@@ -38,9 +38,8 @@ void write(
     outfile.close();
 }
 
-void *dgemm_pthread(void *thread_arg) {
+void *init_matrix_pthread(void *thread_arg) {
     ThreadData *t_data = (ThreadData *)thread_arg;
-    std::cout << "Thread " << t_data->threadno_ << " is working now\n";
     t_data->time_ = -wtime();
     int items_per_thread = t_data->size_ / t_data->nthreads_;
     int lb = t_data->threadno_ * items_per_thread;
@@ -55,6 +54,19 @@ void *dgemm_pthread(void *thread_arg) {
             *(t_data->C_ + i * t_data->size_ + j) = 0.0;
         }
     }
+    t_data->time_ += wtime();
+    return nullptr;
+}
+
+void *dgemm_pthread(void *thread_arg) {
+    ThreadData *t_data = (ThreadData *)thread_arg;
+    std::cout << "Thread " << t_data->threadno_ << " is working now\n";
+    t_data->time_ = -wtime();
+    int items_per_thread = t_data->size_ / t_data->nthreads_;
+    int lb = t_data->threadno_ * items_per_thread;
+    int ub = (t_data->threadno_ == t_data->nthreads_ - 1)
+        ? (t_data->size_ - 1)
+        : (lb + items_per_thread - 1);
     for (int i = lb; i <= ub; ++i) {
         for (int k = 0; k < t_data->size_; ++k) {
             for (int j = 0; j < t_data->size_; ++j) {
@@ -70,35 +82,34 @@ void *dgemm_pthread(void *thread_arg) {
     return nullptr;
 }
 
-void matrix_vector_product_omp(
-    double *a, double *b, double *c, int size, int threads) {
+void init_matrix_omp(double *a, double *b, double *c, int size, int threads) {
 #pragma omp parallel num_threads(threads)
     {
-        int nthreads = omp_get_num_threads();
-        int threadid = omp_get_thread_num();
-        std::cout << "Thread " << threadid << " is working now\n";
-        int items_per_thread = size / nthreads;
-        int lb = threadid * items_per_thread;
-        int ub = (threadid == nthreads - 1) ? (size - 1)
-                                            : (lb + items_per_thread - 1);
         unsigned int seed = omp_get_thread_num();
-        for (int i = lb; i <= ub; ++i) {
+#pragma omp for nowait
+        for (int i = 0; i < size; ++i) {
             for (int j = 0; j < size; ++j) {
                 *(a + i * size + j) = get_rand(&seed);
                 *(b + i * size + j) = get_rand(&seed);
                 *(c + i * size + j) = 0.0;
             }
         }
-        for (int i = lb; i <= ub; ++i) {
-            for (int k = 0; k < size; ++k) {
-                for (int j = 0; j < size; ++j) {
-                    *(c + i * size + j) +=
-                        *(a + i * size + k) * *(b + k * size + j);
-                }
+    }
+}
+
+void dgemm_omp(double *a, double *b, double *c, int size, int threads) {
+#pragma omp parallel for num_threads(threads)
+    std::cout << "Thread " << omp_get_thread_num() << " is working now\n";
+    for (int i = 0; i < size; ++i) {
+        for (int k = 0; k < size; ++k) {
+            for (int j = 0; j < size; ++j) {
+                *(c + i * size + j) +=
+                    *(a + i * size + k) * *(b + k * size + j);
             }
         }
-        std::cout << "Thread " << threadid << " has finished calculations\n";
     }
+    std::cout << "Thread " << omp_get_thread_num()
+              << " has finished calculations\n";
 }
 
 void dgemm(double *a, double *b, double *c, int size) {
@@ -142,7 +153,8 @@ int main(int argc, char **argv) {
     double t;
     if (mode == "openmp") {
         t = -wtime();
-        matrix_vector_product_omp(A, B, C, size, threads);
+        init_matrix_omp(A, B, C, size, threads);
+        dgemm_omp(A, B, C, size, threads);
         t += wtime();
     } else if (mode == "posix") {
         ThreadData *t_data = new ThreadData[threads];
@@ -156,6 +168,21 @@ int main(int argc, char **argv) {
         }
         for (int i = 1; i < threads; ++i) {
             if (pthread_create(
+                    &t_data[i].thread_id_,
+                    NULL,
+                    init_matrix_pthread,
+                    &t_data[i]) != 0) {
+                std::cout << "error: thread can't be created\n";
+                return -1;
+            }
+        }
+        init_matrix_pthread(&t_data[0]);
+        for (int i = 1; i < threads; ++i) {
+            pthread_join(t_data[i].thread_id_, nullptr);
+        }
+        t = t_data->time_;
+        for (int i = 1; i < threads; ++i) {
+            if (pthread_create(
                     &t_data[i].thread_id_, NULL, dgemm_pthread, &t_data[i]) !=
                 0) {
                 std::cout << "error: thread can't be created\n";
@@ -166,7 +193,7 @@ int main(int argc, char **argv) {
         for (int i = 1; i < threads; ++i) {
             pthread_join(t_data[i].thread_id_, nullptr);
         }
-        t = t_data->time_;
+        t += t_data->time_;
         delete[] t_data;
     } else if (mode == "default") {
         t = -wtime();
